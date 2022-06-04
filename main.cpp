@@ -30,7 +30,7 @@ int main() {
     vector<int> potentialNeighbour_x;
     vector<int> potentialNeighbour_y;
 
-    Dimensions dimensions = getDataFromFile("input.txt");
+    Dimensions dimensions = getDataFromFile("../input.txt");
 
 
     cout << dimensions.daneX << endl;
@@ -77,7 +77,7 @@ Dimensions getDataFromFile(string fileName) {
 
 
 vector<vector<string>> createRandomNonogram(int x, int y, int elements){
-    
+
 }
 
 
