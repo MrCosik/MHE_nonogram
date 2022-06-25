@@ -3,14 +3,158 @@
 #include<string>
 #include <vector>
 #include <sstream>
+#include <random>
 
 using namespace std;
 
-class Dimensions {
+
+
+bool equals(vector<int> a, vector<int> b) {
+    if( a.size() != b.size() ) return false;
+    for(int i = 0; i < (int) a.size(); i++) {
+        if(a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+struct Dimensions {
+
 public:
     vector<vector<int>> daneX;
     vector<vector<int>> daneY;
+    int dimension;
 
+
+
+    vector<vector<int>>  matrix;
+    long dimensionX = daneX.size();
+    long dimensionY = daneY.size();
+
+
+    void showMatrix() {
+        cout << "Resulting grid is: " << endl;
+        for(int i = 0; i < dimensionX; i++) {
+            for(int j = 0; j < dimensionY; j++) {
+                if(j != 0) cout << " ";
+                cout << ((matrix[i][j] == 1) ? 'O' : 'X');
+            }
+            cout << endl;
+        }
+    }
+
+    bool updateLine(int idx) {
+        int newVal, pos;
+        bool hasChanged = false, go;
+
+        vector<int> aux;
+        vector< vector<int> > auxLines;
+
+        for(int i = 1; i < (1 << dimensionX); i++) {
+            go = true;
+            aux.clear();
+            for(int j = 0; j < dimensionX; j++) {
+                if( (i & (1 << j)) != 0 ) newVal = 1;
+                else newVal = 0;
+
+                if(matrix[idx][j] != -1 and matrix[idx][j] != newVal) go = false;
+                aux.push_back(newVal);
+            }
+            if(go) auxLines.push_back(aux);
+        }
+
+        for(int i = auxLines.size() - 1; i >= 0; i--) {
+            aux.clear();
+            newVal = pos = 0;
+            while(pos < dimensionX) {
+                if( auxLines[i][pos] == 0 ) {
+                    if(newVal != 0) aux.push_back(newVal), newVal = 0;
+                }
+                else newVal++;
+                pos++;
+            }
+            if(newVal != 0) aux.push_back(newVal);
+            if( not equals(aux, daneX[idx]) ) auxLines.erase( auxLines.begin() + i );
+        }
+
+        if( auxLines.size() > 0 ) {
+            for(int j = 0; j < dimensionX; j++) {
+                if(matrix[idx][j] != -1) continue;
+                go = true;
+                newVal = auxLines[0][j];
+                for(int i = 1; i < (int)auxLines.size(); i++) {
+                    if(newVal != auxLines[i][j]) go = false;
+                }
+                if(go) matrix[idx][j] = newVal, hasChanged = true;
+            }
+        }
+
+        return hasChanged;
+    }
+
+    bool updateColumn(int idx) {
+        int newVal, pos;
+        bool hasChanged = false, go;
+
+
+
+        vector<int> aux;
+        vector< vector<int> > auxLines;
+
+        for(int i = 1; i < (1 << dimensionY); i++) {
+            go = true;
+            aux.clear();
+            for(int j = 0; j < dimensionY; j++) {
+                if( (i & (1 << j)) != 0 ) newVal = 1;
+                else newVal = 0;
+
+                if(matrix[j][idx] != -1 and matrix[j][idx] != newVal) go = false;
+                aux.push_back(newVal);
+            }
+            if(go) auxLines.push_back(aux);
+        }
+
+        for(int i = auxLines.size() - 1; i >= 0; i--) {
+            aux.clear();
+            newVal = pos = 0;
+            while(pos < dimensionY) {
+                if( auxLines[i][pos] == 0 ) {
+                    if(newVal != 0) aux.push_back(newVal), newVal = 0;
+                }
+                else newVal++;
+                pos++;
+            }
+            if(newVal != 0) aux.push_back(newVal);
+            if( not equals(aux, daneY[idx]) ) auxLines.erase( auxLines.begin() + i );
+        }
+
+        if( auxLines.size() > 0 ) {
+            for(int j = 0; j < dimensionY; j++) {
+                if(matrix[j][idx] != -1) continue;
+                go = true;
+                newVal = auxLines[0][j];
+                for(int i = 1; i < (int)auxLines.size(); i++) {
+                    if(newVal != auxLines[i][j]) go = false;
+                }
+                if(go) matrix[j][idx] = newVal, hasChanged = true;
+            }
+        }
+
+        return hasChanged;
+    }
+
+    void solve() {
+        matrix.resize(dimension);
+        for(int i = 0; i < dimension; i++) matrix[i].resize(dimension, -1);
+
+        bool finished = false;
+        while(not finished) {
+            finished = true;
+            for(int i = 0; i < dimension; i++) {
+                if( updateLine(i) ) finished = false;
+                if( updateColumn(i) ) finished = false;
+            }
+        }
+    }
 };
 
 ostream &operator<<(ostream& o,vector<vector<int>> tab){
@@ -23,25 +167,6 @@ ostream &operator<<(ostream& o,vector<vector<int>> tab){
     }
     return o;
 };
-
-Dimensions getDataFromFile(string fileName);
-
-int main() {
-    vector<int> potentialNeighbour_x;
-    vector<int> potentialNeighbour_y;
-
-    Dimensions dimensions = getDataFromFile("../input.txt");
-
-
-    cout << dimensions.daneX << endl;
-    cout << dimensions.daneY << endl;
-
-
-    return 0;
-}
-
-
-
 
 vector<int> simple_tokenizer(string s) {
     vector<int> vec;
@@ -72,13 +197,36 @@ Dimensions getDataFromFile(string fileName) {
         }
         file.close();
     }
-    return {vectorX,vectorY};
+    return {vectorX,vectorY, 4};
 }
 
 
-vector<vector<string>> createRandomNonogram(int x, int y, int elements){
+//
+//
+//vector<vector<string>> createRandomNonogram(int x, int y, int elements){
+//
+//
+//
+//}
 
+int main() {
+    vector<int> potentialNeighbour_x;
+    vector<int> potentialNeighbour_y;
+
+    Dimensions dimensions = getDataFromFile("../input.txt");
+    cout << dimensions.daneX << endl;
+    cout << dimensions.daneY << endl;
+    dimensions.solve();
+    dimensions.showMatrix();
+//
+
+
+
+    return 0;
 }
+
+
+
 
 
 
