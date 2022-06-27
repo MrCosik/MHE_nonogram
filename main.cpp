@@ -305,9 +305,15 @@ int main() {
     dimensions.solve();
     dimensions.showMatrix();
 
-    Nonogram testNonogram = generatePuzzle(4, 4,11);
+    int allElements = 0;
 
-    Dimensions testDimension = createDimensionsFromNonogram(testNonogram, 4);
+    for(vector<int> element : dimensions.daneX){
+        allElements += accumulate(element.begin(),element.end(), 0);
+    }
+
+    Nonogram testNonogram = generatePuzzle(dimensions.daneX.size(), dimensions.daneY.size(),allElements);
+
+    Dimensions testDimension = createDimensionsFromNonogram(testNonogram, dimensions.daneY.size());
 
 
     cout << testDimension.daneX << endl;
