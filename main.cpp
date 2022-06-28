@@ -34,12 +34,11 @@ public:
         for (int i = 0; i < dimensionX; i++) {
             for (int j = 0; j < dimensionY; j++) {
                 if (j != 0) cout << " ";
-                cout << ((matrix[i][j] == 1) ? 'X' : 'O');
+                cout << ((matrix[i][j] == 1) ? 'X' : '.');
             }
             cout << endl;
         }
     }
-
 
 
     bool updateLine(int idx) {
@@ -148,7 +147,6 @@ public:
             finished = true;
             for (int i = 0; i < dimension; i++) {
                 if (updateLine(i)) finished = false;
-                if (updateColumn(i)) finished = false;
             }
         }
     }
@@ -186,7 +184,7 @@ Nonogram generatePuzzle(int height, int width, int allElements) {
         maxWidth = randomNumber(width - 1);
         if(nonogram[maxHeight][maxWidth] != 1) {
             nonogram[maxHeight][maxWidth] = 1;
-        }else{
+        } else {
             i--;
         }
     }
@@ -204,16 +202,16 @@ Dimensions createDimensionsFromNonogram(Nonogram nonogram, int height) {
     int x = 0;
     int y = 0;
 
-    for (int i = 0; i < height ; i++) {
-        for (int j = 0; j < nonogram.nonogram[0].size() ; ++j) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < nonogram.nonogram[0].size(); ++j) {
             if (nonogram.nonogram[i][j] == 1) {
                 x++;
-            } else if(x != 0) {
+            } else if (x != 0) {
                 xLine.push_back(x);
                 x = 0;
             }
         }
-        if(x != 0){
+        if (x != 0) {
             xLine.push_back(x);
         }
         daneX.push_back(xLine);
@@ -226,12 +224,12 @@ Dimensions createDimensionsFromNonogram(Nonogram nonogram, int height) {
         for (int i = 0; i < height; i++) {
             if (nonogram.nonogram[i][j] == 1) {
                 y++;
-            } else if(y != 0) {
+            } else if (y != 0) {
                 yLine.push_back(y);
                 y = 0;
             }
         }
-        if(y!= 0){
+        if (y != 0) {
             yLine.push_back(y);
         }
         daneY.push_back(yLine);
@@ -239,7 +237,7 @@ Dimensions createDimensionsFromNonogram(Nonogram nonogram, int height) {
         y = 0;
     }
 
-    return {daneX, daneY, 4};
+    return {daneX, daneY, 7};
 }
 
 
@@ -283,17 +281,33 @@ Dimensions getDataFromFile(string fileName) {
         }
         file.close();
     }
-    return {vectorX, vectorY, 4};
+    return {vectorX, vectorY, 7};
 }
 
 
-//
-//
-//vector<vector<string>> createRandomNonogram(int x, int y, int elements){
-//
-//
-//
-//}
+double fitnessFunction(Dimensions original, Dimensions generated, int height, int width) {
+    double maxFunction = 0;
+    double ret = 0;
+
+    for (int i = 0; i < height; ++i) {
+        maxFunction += 100 * original.daneX[i].size();
+    }
+
+    for (int i = 0; i < width; ++i) {
+        maxFunction += 100 * original.daneY[i].size();
+    }
+
+    for (int i = 0; i < generated.dimensionX; ++i) {
+        for (int j = 0; j < generated.daneX[i].size(); ++j) {
+            if (generated.daneX[i][j] == original.daneX[i][j]) {
+                ret += 100;
+            }
+        }
+    }
+
+    return ret / maxFunction;
+
+}
 
 int main() {
     vector<int> potentialNeighbour_x;
@@ -307,11 +321,11 @@ int main() {
 
     int allElements = 0;
 
-    for(vector<int> element : dimensions.daneX){
-        allElements += accumulate(element.begin(),element.end(), 0);
+    for (vector<int> element: dimensions.daneX) {
+        allElements += accumulate(element.begin(), element.end(), 0);
     }
 
-    Nonogram testNonogram = generatePuzzle(dimensions.daneX.size(), dimensions.daneY.size(),allElements);
+    Nonogram testNonogram = generatePuzzle(dimensions.daneX.size(), dimensions.daneY.size(), allElements);
 
     Dimensions testDimension = createDimensionsFromNonogram(testNonogram, dimensions.daneY.size());
 
@@ -321,6 +335,7 @@ int main() {
     testDimension.solve();
     testDimension.showMatrix();
 
+    cout << fitnessFunction(dimensions, testDimension, dimensions.dimensionY, dimensions.dimensionX) << endl;
     return 0;
 }
 
