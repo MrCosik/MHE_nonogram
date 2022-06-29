@@ -16,12 +16,16 @@ bool equals(vector<int> a, vector<int> b) {
     return true;
 }
 
+struct Nonogram {
+public:
+    vector<vector<int>> nonogram;
+};
+
 struct Dimensions {
 
 public:
     vector<vector<int>> daneX;
     vector<vector<int>> daneY;
-    int dimension;
 
 
     vector<vector<int>> matrix;
@@ -138,17 +142,26 @@ public:
         return hasChanged;
     }
 
-    void solve() {
-        matrix.resize(dimension);
-        for (int i = 0; i < dimension; i++) matrix[i].resize(dimension, -1);
+    Nonogram solve() {
+        matrix.resize(dimensionY);
+        for (int i = 0; i < dimensionY; i++) matrix[i].resize(dimensionX, -1);
 
         bool finished = false;
         while (not finished) {
             finished = true;
-            for (int i = 0; i < dimension; i++) {
+            for (int i = 0; i < dimensionX; i++) {
                 if (updateLine(i)) finished = false;
             }
         }
+        finished = false;
+
+        while (not finished) {
+            finished = true;
+            for (int i = 0; i < dimensionY; i++) {
+                if (updateColumn(i)) finished = false;
+            }
+        }
+        return {matrix};
     }
 };
 
@@ -161,11 +174,6 @@ int randomNumber(int to) {
 
     return random_integer;
 }
-
-struct Nonogram {
-public:
-    vector<vector<int>> nonogram;
-};
 
 
 Nonogram generatePuzzle(int height, int width, int allElements) {
@@ -182,7 +190,7 @@ Nonogram generatePuzzle(int height, int width, int allElements) {
     for (auto i = 0; i < allElements; i++) {
         maxHeight = randomNumber(height - 1);
         maxWidth = randomNumber(width - 1);
-        if(nonogram[maxHeight][maxWidth] != 1) {
+        if (nonogram[maxHeight][maxWidth] != 1) {
             nonogram[maxHeight][maxWidth] = 1;
         } else {
             i--;
@@ -237,7 +245,7 @@ Dimensions createDimensionsFromNonogram(Nonogram nonogram, int height) {
         y = 0;
     }
 
-    return {daneX, daneY, 7};
+    return {daneX, daneY};
 }
 
 
@@ -281,31 +289,132 @@ Dimensions getDataFromFile(string fileName) {
         }
         file.close();
     }
-    return {vectorX, vectorY, 7};
+    return {vectorX, vectorY};
 }
 
 
-double fitnessFunction(Dimensions original, Dimensions generated, int height, int width) {
-    double maxFunction = 0;
-    double ret = 0;
+double fitnessFunction(Dimensions original, Dimensions generated) {
 
-    for (int i = 0; i < height; ++i) {
-        maxFunction += 100 * original.daneX[i].size();
+    double fit = 0;
+
+    int smallestSize;
+
+    //ilosc grup
+    for (int i = 0; i < generated.dimensionX; ++i) {
+        fit += max(0, (int) (original.daneX[i].size() -
+                             abs((int) original.daneX[i].size() - (int) generated.daneX[i].size())));
+
     }
 
-    for (int i = 0; i < width; ++i) {
-        maxFunction += 100 * original.daneY[i].size();
-    }
+    int generatedRowSum = 0;
+    int originalRowSum = 0;
 
     for (int i = 0; i < generated.dimensionX; ++i) {
-        for (int j = 0; j < generated.daneX[i].size(); ++j) {
+        for (int j: generated.daneX[i]) {
+            generatedRowSum += j;
+        }
+
+        for (int j: original.daneX[i]) {
+            originalRowSum += j;
+        }
+
+        fit += max(0, generatedRowSum - abs(generatedRowSum - originalRowSum));
+
+        generatedRowSum = 0;
+        originalRowSum = 0;
+    }
+
+
+    //zliczanie pojedynczych pkt
+    for (int i = 0; i < generated.dimensionX; ++i) {
+        smallestSize = min(generated.daneX[i].size(), original.daneX[i].size());
+        for (int j = 0; j < smallestSize; j++) {
             if (generated.daneX[i][j] == original.daneX[i][j]) {
-                ret += 100;
+                fit++;
             }
         }
     }
 
-    return ret / maxFunction;
+
+    return fit;
+
+}
+
+
+double goal(Dimensions original, Dimensions generated) {
+
+    double ret = 0;
+    double maxFunction = 0;
+    int biggestSize;
+
+
+    for (int i = 0; i < original.daneY[0].size(); ++i) {
+        maxFunction += original.daneY[i].size();
+    }
+
+    for (int i = 0; i < original.daneX[0].size(); ++i) {
+        maxFunction += original.daneX[i].size();
+    }
+
+
+    for (int i = 0; i < generated.dimensionX; ++i) {
+        biggestSize = max(generated.daneX[i].size(), original.daneX[i].size());
+        if (generated.daneX[i].size() < biggestSize) {
+            generated.daneX[i].resize(biggestSize, 0);
+        }
+
+        if (original.daneX[i].size() < biggestSize) {
+            original.daneX[i].resize(biggestSize, 0);
+        }
+        for (int j = 0; j < biggestSize; j++) {
+            ret += abs(generated.daneX[i][j] - original.daneX[i][j]);
+        }
+    }
+
+    return ret;
+}
+
+vector<Dimensions> generateNeighbours(Dimensions original) {
+    vector<Dimensions> result;
+    Nonogram nonogram = original.solve();
+    vector<int> bits;
+
+    for (vector<int> el: nonogram.nonogram) {
+        for (int j: el) {
+            bits.push_back(j);
+        }
+    }
+
+    return result;
+
+}
+
+Dimensions randomHillClimbing(Dimensions original, int rounds) {
+    int allElements = 0;
+
+    for (vector<int> element: original.daneX) {
+        allElements += accumulate(element.begin(), element.end(), 0);
+    }
+
+    Dimensions bestSolution = createDimensionsFromNonogram(generatePuzzle(original.daneX.size(),
+                                                                          original.daneY.size(), allElements),
+                                                           original.daneY.size());
+    double bestFit = fitnessFunction(original, bestSolution);
+    do {
+        Dimensions pomSolution = createDimensionsFromNonogram(
+                generatePuzzle(original.daneX.size(), original.daneY.size(), allElements),
+                original.daneY.size());
+
+        if (fitnessFunction(original, pomSolution) > bestFit) {
+            bestSolution = pomSolution;
+        } else {
+            break;
+        }
+
+
+    } while (true);
+
+    return bestSolution;
 
 }
 
@@ -335,7 +444,9 @@ int main() {
     testDimension.solve();
     testDimension.showMatrix();
 
-    cout << fitnessFunction(dimensions, testDimension, dimensions.dimensionY, dimensions.dimensionX) << endl;
+    generateNeighbours(dimensions);
+
+    cout << fitnessFunction(dimensions, testDimension) << endl;
     return 0;
 }
 
