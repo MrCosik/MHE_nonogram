@@ -300,13 +300,13 @@ double fitnessFunction(Dimensions original, Dimensions generated) {
 
     int smallestSize;
 
-    //ilosc grup
-    for (int i = 0; i < generated.dimensionX; ++i) {
+    //check correctness of number of groups
+    for (int i = 0; i < original.dimensionX; ++i) {
         fit += max(0, (int) (original.daneX[i].size() -
                              abs((int) original.daneX[i].size() - (int) generated.daneX[i].size())));
-
     }
 
+    //check correctness of sums
     int generatedRowSum = 0;
     int originalRowSum = 0;
 
@@ -319,19 +319,54 @@ double fitnessFunction(Dimensions original, Dimensions generated) {
             originalRowSum += j;
         }
 
-        fit += max(0, generatedRowSum - abs(generatedRowSum - originalRowSum));
+        fit += max(0, originalRowSum - abs(originalRowSum - generatedRowSum));
 
         generatedRowSum = 0;
         originalRowSum = 0;
     }
 
-
-    //zliczanie pojedynczych pkt
-    for (int i = 0; i < generated.dimensionX; ++i) {
+    //check correctness of each element
+    for (int i = 0; i < original.dimensionX; ++i) {
         smallestSize = min(generated.daneX[i].size(), original.daneX[i].size());
         for (int j = 0; j < smallestSize; j++) {
             if (generated.daneX[i][j] == original.daneX[i][j]) {
-                fit++;
+                fit += 1;
+            }
+        }
+    }
+
+    //check correctness of number of groups
+    for (int i = 0; i < original.dimensionY; ++i) {
+        fit += max(0, (int) (original.daneY[i].size() -
+                             abs((int) original.daneY[i].size() - (int) generated.daneY[i].size())));
+    }
+
+    //check correctness of sums
+    int generatedColSum = 0;
+    int originalColSum = 0;
+
+    for (int i = 0; i < original.dimensionY; ++i) {
+        for (int j : generated.daneY[i]) {
+            generatedColSum += j;
+        }
+
+        for (int j : original.daneY[i]) {
+            originalColSum += j;
+        }
+
+        fit += max(0, generatedColSum - abs(generatedColSum - originalColSum));
+
+        generatedColSum = 0;
+        originalColSum = 0;
+    }
+
+
+    //check correctness of each element
+    for (int i = 0; i < original.dimensionY; ++i) {
+        smallestSize = min(generated.daneY[i].size(), original.daneY[i].size());
+        for (int j = 0; j < smallestSize; j++) {
+            if (generated.daneY[i][j] == original.daneY[i][j]) {
+                fit += 1;
             }
         }
     }
@@ -421,24 +456,48 @@ vector<Dimensions> generateNeighbours(Dimensions original) {
 
 }
 
-Dimensions randomHillClimbing(Dimensions original, int rounds) {
+Dimensions deterministicHillClimbing(Dimensions original) {
     int i = 0;
+    vector<Dimensions> neighbours = generateNeighbours(original);
+
+
+    Dimensions temporarySolution;
+    int bestSolutionIndex = randomNumber(neighbours.size() - 1);
+    Dimensions bestSolution = neighbours[bestSolutionIndex];
+
+    double bestFit = fitnessFunction(original, bestSolution);
+    do {
+        if(bestSolutionIndex - 1 >= 0 || bestSolutionIndex + 1 < neighbours.size()){
+            if (fitnessFunction(original, neighbours[bestSolutionIndex - 1]) > bestFit) {
+                bestSolution = neighbours[bestSolutionIndex - 1];
+            }else if(fitnessFunction(original, neighbours[bestSolutionIndex + 1]) > bestFit)  {
+                bestSolution = neighbours[bestSolutionIndex + 1];
+            }else{
+                break;
+            }
+        }
+    } while (true);
+
+    cout<< "The best fitness score for deterministic hill climb: " << bestFit;
+    return bestSolution;
+
+}
+
+Dimensions randomHillClimbing(Dimensions original, int rounds) {
     vector<Dimensions> neighbours = generateNeighbours(original);
 
 
     Dimensions temporarySolution;
     Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
 
-    double bestFit = fitnessFunction(original, bestSolution);
-    do {
+    double bestFit = fitnessFunction(original, original);
+    for (int i = 0; i < rounds; ++i) {
         temporarySolution = neighbours[randomNumber(neighbours.size() - 1)];;
         if (fitnessFunction(original, temporarySolution) > bestFit) {
             bestSolution = temporarySolution;
         }
-        i++;
-    } while (i < rounds);
-
-    cout<< "The best fitness score: " << bestFit;
+    }
+    cout<< "The best fitness score for random hill climb: " << bestFit << endl;
     return bestSolution;
 
 }
@@ -455,11 +514,21 @@ int main() {
 
 
     cout << "Best from random hillclimb: " << endl;
-    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10);
+    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10000);
     cout << randomHillClmb.daneX << endl;
     cout << randomHillClmb.daneY << endl;
     randomHillClmb.solve();
     randomHillClmb.showMatrix();
+
+    cout << "Best from deterministic hillclimb: " << endl;
+    Dimensions deterministicHillClimb = deterministicHillClimbing(dimensions);
+    cout << deterministicHillClimb.daneX << endl;
+    cout << deterministicHillClimb.daneY << endl;
+    deterministicHillClimb.solve();
+    deterministicHillClimb.showMatrix();
+
+
+
 
 
     return 0;
