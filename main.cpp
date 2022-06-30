@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <random>
+#include <algorithm>
 
 using namespace std;
 
@@ -374,6 +375,25 @@ double goal(Dimensions original, Dimensions generated) {
     return ret;
 }
 
+vector<vector<int>> change1DvectorTo2D(vector<int> original, int rowSize, int columnSize) {
+    vector<vector<int>> neighbourNonogram;
+
+//    neighbourNonogram.resize(rowSize, vector<int>(columnSize));
+    vector<int> neighbourNonogramRow;
+
+    int min = 0;
+    for (int j = 0; j < original.size(); j += rowSize) {
+        for (int k = j; k < rowSize + j ; k++) {
+            neighbourNonogramRow.push_back(original[k]);
+        }
+        min += rowSize;
+        neighbourNonogram.push_back(neighbourNonogramRow);
+        neighbourNonogramRow.clear();
+    }
+    return neighbourNonogram;
+
+}
+
 vector<Dimensions> generateNeighbours(Dimensions original) {
     vector<Dimensions> result;
     Nonogram nonogram = original.solve();
@@ -385,35 +405,40 @@ vector<Dimensions> generateNeighbours(Dimensions original) {
         }
     }
 
+    for (int i = 0; i < bits.size(); ++i) {
+
+        for (int j = 0; j < bits.size(); j++) {
+            if (j + 1 < bits.size()) {
+                bits[j] = bits[j + 1];
+                bits[bits.size() - 1] = bits[0];
+            }
+        }
+        nonogram = {change1DvectorTo2D(bits, original.dimensionX, original.dimensionY)};
+
+        result.push_back(createDimensionsFromNonogram(nonogram, original.dimensionY));
+    }
     return result;
 
 }
 
 Dimensions randomHillClimbing(Dimensions original, int rounds) {
-    int allElements = 0;
+    int i = 0;
+    vector<Dimensions> neighbours = generateNeighbours(original);
 
-    for (vector<int> element: original.daneX) {
-        allElements += accumulate(element.begin(), element.end(), 0);
-    }
 
-    Dimensions bestSolution = createDimensionsFromNonogram(generatePuzzle(original.daneX.size(),
-                                                                          original.daneY.size(), allElements),
-                                                           original.daneY.size());
+    Dimensions temporarySolution;
+    Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
+
     double bestFit = fitnessFunction(original, bestSolution);
     do {
-        Dimensions pomSolution = createDimensionsFromNonogram(
-                generatePuzzle(original.daneX.size(), original.daneY.size(), allElements),
-                original.daneY.size());
-
-        if (fitnessFunction(original, pomSolution) > bestFit) {
-            bestSolution = pomSolution;
-        } else {
-            break;
+        temporarySolution = neighbours[randomNumber(neighbours.size() - 1)];;
+        if (fitnessFunction(original, temporarySolution) > bestFit) {
+            bestSolution = temporarySolution;
         }
+        i++;
+    } while (i < rounds);
 
-
-    } while (true);
-
+    cout<< "The best fitness score: " << bestFit;
     return bestSolution;
 
 }
@@ -428,25 +453,15 @@ int main() {
     dimensions.solve();
     dimensions.showMatrix();
 
-    int allElements = 0;
 
-    for (vector<int> element: dimensions.daneX) {
-        allElements += accumulate(element.begin(), element.end(), 0);
-    }
-
-    Nonogram testNonogram = generatePuzzle(dimensions.daneX.size(), dimensions.daneY.size(), allElements);
-
-    Dimensions testDimension = createDimensionsFromNonogram(testNonogram, dimensions.daneY.size());
+    cout << "Best from random hillclimb: " << endl;
+    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10);
+    cout << randomHillClmb.daneX << endl;
+    cout << randomHillClmb.daneY << endl;
+    randomHillClmb.solve();
+    randomHillClmb.showMatrix();
 
 
-    cout << testDimension.daneX << endl;
-    cout << testDimension.daneY << endl;
-    testDimension.solve();
-    testDimension.showMatrix();
-
-    generateNeighbours(dimensions);
-
-    cout << fitnessFunction(dimensions, testDimension) << endl;
     return 0;
 }
 
