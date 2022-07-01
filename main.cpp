@@ -6,6 +6,7 @@
 #include <random>
 #include <algorithm>
 #include <set>
+#include <map>
 
 using namespace std;
 
@@ -24,6 +25,20 @@ bool equals(vector<int> a, vector<int> b) {
 struct Nonogram {
 public:
     vector<vector<int>> nonogram;
+
+
+    int getElementsAmount() {
+        int result = 0;
+
+        for(vector<int > el : nonogram){
+            for (int number : el) {
+                if(number == 1){
+                    result++;
+                }
+            }
+        }
+        return result;
+    }
 };
 
 struct Dimensions {
@@ -603,37 +618,113 @@ Dimensions simulatedAnnealing(Dimensions original, int iterations) {
     Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
     int bestSolutionFit;
 
-    for(int i = 0; i < iterations; i++) {
-       bestSolutionFit = fitnessFunction(original, bestSolution);
-       for (auto &neighbour: neighbours) {
-           if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
-               temporarySolution = neighbour;
-               temporarySolutionFit = fitnessFunction(original, temporarySolution);
-           } else {
-               temporarySolution = bestSolution;
-               temporarySolutionFit = bestSolutionFit;
-           }
-       }
+    for (int i = 0; i < iterations; i++) {
+        bestSolutionFit = fitnessFunction(original, bestSolution);
+        for (auto &neighbour: neighbours) {
+            if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
+                temporarySolution = neighbour;
+                temporarySolutionFit = fitnessFunction(original, temporarySolution);
+            } else {
+                temporarySolution = bestSolution;
+                temporarySolutionFit = bestSolutionFit;
+            }
+        }
 
 
-       if (temporarySolutionFit > bestSolutionFit) {
-           bestSolution = temporarySolution;
-       } else {
-           uniform_real_distribution<double> u(0,1);
-           if (u(rng) < exp(-abs(fitnessFunction(original, temporarySolution)-fitnessFunction(original,temporarySolution))/ (1000 / temp))) {
-               bestSolution = temporarySolution;
-           }
-       }
+        if (temporarySolutionFit > bestSolutionFit) {
+            bestSolution = temporarySolution;
+        } else {
+            uniform_real_distribution<double> u(0, 1);
+            if (u(rng) <
+                exp(-abs(fitnessFunction(original, temporarySolution) - fitnessFunction(original, temporarySolution)) /
+                    (1000 / temp))) {
+                bestSolution = temporarySolution;
+            }
+        }
 
         temp++;
-       neighbours = generateNeighbours(bestSolution);
-   }
+        neighbours = generateNeighbours(bestSolution);
+    }
 
     cout << "The best fitness score for simulated annealing: " << fitnessFunction(original, bestSolution) << endl;
 
     return bestSolution;
 }
 
+
+int selectPop(vector<int> arr) {
+
+
+}
+
+pair<Dimensions, Dimensions> crossoverFunction(Dimensions parent1, Dimensions parent2) {
+
+}
+
+
+Dimensions mutation(Dimensions dimensions) {
+    return;
+}
+
+vector<Dimensions> generateInitialPopulation(int amount, int height, int width, int memberSize) {
+    vector<Dimensions> result;
+    Nonogram populationMember;
+    for (int i = 0; i < amount; i++) {
+        populationMember = generatePuzzle(height, width, memberSize);
+        result.push_back(createDimensionsFromNonogram(populationMember, populationMember.nonogram[0].size()));
+    }
+    return result;
+}
+
+int getNumberOfElements(Dimensions element){
+    int sum = 0;
+
+    for (vector<int> el : element.daneX) {
+        sum += accumulate(el.begin(), el.end(), 0);
+    }
+
+    return sum;
+}
+
+Dimensions calculate_genetic_algorithm(Dimensions original) {
+
+    auto calculateFitness = [&](auto pop) {
+        std::vector<double> ret;
+        for (auto e: pop) ret.push_back(fitnessFunction(original, e));
+        return ret;
+    };
+
+    auto population = generateInitialPopulation(20, original.dimensionX, original.dimensionY, getNumberOfElements(original));
+    vector<double> fitForPop = calculateFitness(population);
+
+
+    while (term_condition(fitForPop, population)) {
+        vector<Dimensions> parents;
+        vector<Dimensions> children;
+
+        for (int i = 0; i < population.size(); i++) {
+//            parents.push_back(population[selectPop(fitForPop)]);
+        }
+        for (int i = 0; i < parents.size(); i += 2) {
+//            auto[a, b] = crossoverFunction(parents[i], parents[i + 1]);
+//            children.push_back(a);
+//            children.push_back(b);
+        }
+        for (int i = 0; i < parents.size(); i++) {
+//            children[i] = mutation(children[i]);
+        }
+
+        fitForPop.clear();
+        for (Dimensions el: population) {
+            fitForPop.push_back(fitnessFunction(original, el));
+        }
+
+
+    };
+    return population[
+            max_element(population_fit.begin(), population_fit.end())
+            - population_fit.begin()];
+}
 
 int main() {
     vector<int> potentialNeighbour_x;
@@ -675,8 +766,18 @@ int main() {
     annealing.solve();
     annealing.showMatrix();
 
+
+    cout << "Best from simmulation annealing search: " << endl;
+    Dimensions generic = calculate_genetic_algorithm(dimensions);
+    cout << generic.daneX << endl;
+    cout << generic.daneY << endl;
+    generic.solve();
+    generic.showMatrix();
+
+
     return 0;
 }
+
 
 
 
