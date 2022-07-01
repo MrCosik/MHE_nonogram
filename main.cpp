@@ -5,6 +5,7 @@
 #include <sstream>
 #include <random>
 #include <algorithm>
+#include <set>
 
 using namespace std;
 
@@ -33,6 +34,14 @@ public:
     long dimensionX = daneX.size();
     long dimensionY = daneY.size();
 
+    bool operator==(const Dimensions &rhs) const {
+        return daneX == rhs.daneX &&
+               daneY == rhs.daneY;
+    }
+
+    bool operator!=(const Dimensions &rhs) const {
+        return !(rhs == *this);
+    }
 
     void showMatrix() {
         cout << "Resulting grid is: " << endl;
@@ -346,11 +355,11 @@ double fitnessFunction(Dimensions original, Dimensions generated) {
     int originalColSum = 0;
 
     for (int i = 0; i < original.dimensionY; ++i) {
-        for (int j : generated.daneY[i]) {
+        for (int j: generated.daneY[i]) {
             generatedColSum += j;
         }
 
-        for (int j : original.daneY[i]) {
+        for (int j: original.daneY[i]) {
             originalColSum += j;
         }
 
@@ -371,7 +380,6 @@ double fitnessFunction(Dimensions original, Dimensions generated) {
         }
     }
 
-
     return fit;
 
 }
@@ -380,37 +388,35 @@ double fitnessFunction(Dimensions original, Dimensions generated) {
 double goal(Dimensions original, Dimensions generated) {
 
     double ret = 0;
-    double maxFunction = 0;
     int biggestSize;
 
-
-    for (int i = 0; i < original.daneY[0].size(); ++i) {
-        maxFunction += original.daneY[i].size();
-    }
-
-    for (int i = 0; i < original.daneX[0].size(); ++i) {
-        maxFunction += original.daneX[i].size();
-    }
-
-
-    for (int i = 0; i < generated.dimensionX; ++i) {
+    for (int i = 0; i < generated.dimensionX; i++) {
         biggestSize = max(generated.daneX[i].size(), original.daneX[i].size());
         if (generated.daneX[i].size() < biggestSize) {
             generated.daneX[i].resize(biggestSize, 0);
         }
 
-        if (original.daneX[i].size() < biggestSize) {
-            original.daneX[i].resize(biggestSize, 0);
-        }
         for (int j = 0; j < biggestSize; j++) {
             ret += abs(generated.daneX[i][j] - original.daneX[i][j]);
+        }
+
+    }
+
+    for (int i = 0; i < generated.dimensionX; i++) {
+        biggestSize = max(generated.daneY[i].size(), original.daneY[i].size());
+        if (original.daneY[i].size() < biggestSize) {
+            original.daneY[i].resize(biggestSize, 0);
+        }
+
+        for (int j = 0; j < biggestSize; j++) {
+            ret += abs(generated.daneY[i][j] - original.daneY[i][j]);
         }
     }
 
     return ret;
 }
 
-vector<vector<int>> change1DvectorTo2D(vector<int> original, int rowSize, int columnSize) {
+vector<vector<int>> change1DvectorTo2D(vector<int> original, int rowSize) {
     vector<vector<int>> neighbourNonogram;
 
 //    neighbourNonogram.resize(rowSize, vector<int>(columnSize));
@@ -418,7 +424,7 @@ vector<vector<int>> change1DvectorTo2D(vector<int> original, int rowSize, int co
 
     int min = 0;
     for (int j = 0; j < original.size(); j += rowSize) {
-        for (int k = j; k < rowSize + j ; k++) {
+        for (int k = j; k < rowSize + j; k++) {
             neighbourNonogramRow.push_back(original[k]);
         }
         min += rowSize;
@@ -440,6 +446,8 @@ vector<Dimensions> generateNeighbours(Dimensions original) {
         }
     }
 
+    result.push_back(original);
+
     for (int i = 0; i < bits.size(); ++i) {
 
         for (int j = 0; j < bits.size(); j++) {
@@ -448,7 +456,7 @@ vector<Dimensions> generateNeighbours(Dimensions original) {
                 bits[bits.size() - 1] = bits[0];
             }
         }
-        nonogram = {change1DvectorTo2D(bits, original.dimensionX, original.dimensionY)};
+        nonogram = {change1DvectorTo2D(bits, original.dimensionX)};
 
         result.push_back(createDimensionsFromNonogram(nonogram, original.dimensionY));
     }
@@ -457,28 +465,37 @@ vector<Dimensions> generateNeighbours(Dimensions original) {
 }
 
 Dimensions deterministicHillClimbing(Dimensions original) {
-    int i = 0;
     vector<Dimensions> neighbours = generateNeighbours(original);
 
 
     Dimensions temporarySolution;
-    int bestSolutionIndex = randomNumber(neighbours.size() - 1);
-    Dimensions bestSolution = neighbours[bestSolutionIndex];
+    int temporarySolutionFit;
+    Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
+    int bestSolutionFit;
 
-    double bestFit = fitnessFunction(original, bestSolution);
     do {
-        if(bestSolutionIndex - 1 >= 0 || bestSolutionIndex + 1 < neighbours.size()){
-            if (fitnessFunction(original, neighbours[bestSolutionIndex - 1]) > bestFit) {
-                bestSolution = neighbours[bestSolutionIndex - 1];
-            }else if(fitnessFunction(original, neighbours[bestSolutionIndex + 1]) > bestFit)  {
-                bestSolution = neighbours[bestSolutionIndex + 1];
-            }else{
-                break;
+        bestSolutionFit = fitnessFunction(original, bestSolution);
+        for (auto &neighbour: neighbours) {
+            if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
+                temporarySolution = neighbour;
+                temporarySolutionFit = fitnessFunction(original, temporarySolution);
+            } else {
+                temporarySolution = bestSolution;
+                temporarySolutionFit = bestSolutionFit;
             }
         }
+
+
+        if (temporarySolutionFit > bestSolutionFit) {
+            bestSolution = temporarySolution;
+        } else {
+            break;
+        }
+        neighbours = generateNeighbours(bestSolution);
+
     } while (true);
 
-    cout<< "The best fitness score for deterministic hill climb: " << bestFit;
+    cout << "The best fitness score for deterministic hill climb: " << fitnessFunction(original, bestSolution) << endl;
     return bestSolution;
 
 }
@@ -490,17 +507,123 @@ Dimensions randomHillClimbing(Dimensions original, int rounds) {
     Dimensions temporarySolution;
     Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
 
-    double bestFit = fitnessFunction(original, original);
+    int temporarySolutionFit;
+    int bestSolutionFit;
+
+    int randomIndex;
     for (int i = 0; i < rounds; ++i) {
-        temporarySolution = neighbours[randomNumber(neighbours.size() - 1)];;
-        if (fitnessFunction(original, temporarySolution) > bestFit) {
+        randomIndex = randomNumber(neighbours.size() - 1);
+        bestSolutionFit = fitnessFunction(original, bestSolution);
+        if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbours[randomIndex])) {
+            temporarySolution = neighbours[randomIndex];
+            temporarySolutionFit = fitnessFunction(original, temporarySolution);
+        } else {
+            temporarySolution = bestSolution;
+            temporarySolutionFit = bestSolutionFit;
+        }
+
+        if (temporarySolutionFit > bestSolutionFit) {
             bestSolution = temporarySolution;
+            neighbours = generateNeighbours(bestSolution);
         }
     }
-    cout<< "The best fitness score for random hill climb: " << bestFit << endl;
+    cout << "The best fitness score for random hill climb: " << bestSolutionFit << endl;
     return bestSolution;
 
 }
+
+Dimensions tabuSearch(Dimensions original, int maxTabuSize, int iteration = -1) {
+    vector<Dimensions> neighbours = generateNeighbours(original);
+
+    int i = 0;
+    Dimensions solution = neighbours[randomNumber(neighbours.size() - 1)];
+    Dimensions bestSolution = solution;
+    vector<Dimensions> tabuList = {solution};
+
+    Dimensions temporarySolution;
+
+    int temporarySolutionFit;
+    int bestSolutionFit;
+    int solutionFit;
+
+    auto whileCondition = [](int counter, int rounds) -> bool {
+        if (rounds < 0) {
+            return true;
+        } else {
+            return counter < rounds;
+        }
+    };
+
+
+    do {
+        solutionFit = fitnessFunction(original, solution);
+        bestSolutionFit = fitnessFunction(original, bestSolution);
+        for (auto neighbour: neighbours) {
+            tabuList.push_back(neighbour);
+            if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
+                temporarySolution = neighbour;
+                temporarySolutionFit = fitnessFunction(original, temporarySolution);
+            } else {
+                temporarySolution = bestSolution;
+                temporarySolutionFit = bestSolutionFit;
+            }
+        }
+
+
+        if (find(tabuList.begin(), tabuList.end(), temporarySolution) != tabuList.end() &&
+            bestSolutionFit < temporarySolutionFit) {
+            bestSolution = temporarySolution;
+        }
+
+        if (solutionFit < bestSolutionFit) {
+            solution = bestSolution;
+        }
+
+        tabuList.push_back(bestSolution);
+        if (tabuList.size() > maxTabuSize) {
+            tabuList.erase(tabuList.begin());
+        }
+        neighbours = generateNeighbours(bestSolution);
+        i++;
+    } while (whileCondition(i, iteration));
+
+    cout << "The best fitness score for tabu search: " << fitnessFunction(original, solution) << endl;
+
+    return solution;
+}
+
+Dimensions simulatedAnnealing(Dimensions original, int temp) {
+    vector<Dimensions> neighbours = generateNeighbours(original);
+
+
+    Dimensions temporarySolution;
+    int temporarySolutionFit;
+    Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
+    int bestSolutionFit;
+
+    do {
+        bestSolutionFit = fitnessFunction(original, bestSolution);
+        for (auto &neighbour: neighbours) {
+            if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
+                temporarySolution = neighbour;
+                temporarySolutionFit = fitnessFunction(original, temporarySolution);
+            } else {
+                temporarySolution = bestSolution;
+                temporarySolutionFit = bestSolutionFit;
+            }
+        }
+
+
+        if (temporarySolutionFit > bestSolutionFit) {
+            bestSolution = temporarySolution;
+        } else {
+            break;
+        }
+        neighbours = generateNeighbours(bestSolution);
+    } while (true);
+    return bestSolution;
+}
+
 
 int main() {
     vector<int> potentialNeighbour_x;
@@ -514,7 +637,7 @@ int main() {
 
 
     cout << "Best from random hillclimb: " << endl;
-    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10000);
+    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10);
     cout << randomHillClmb.daneX << endl;
     cout << randomHillClmb.daneY << endl;
     randomHillClmb.solve();
@@ -527,8 +650,12 @@ int main() {
     deterministicHillClimb.solve();
     deterministicHillClimb.showMatrix();
 
-
-
+    cout << "Best from tabu search: " << endl;
+    Dimensions tabu = tabuSearch(dimensions, 200, 1000);
+    cout << tabu.daneX << endl;
+    cout << tabu.daneY << endl;
+    tabu.solve();
+    tabu.showMatrix();
 
 
     return 0;
