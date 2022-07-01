@@ -10,6 +10,9 @@
 using namespace std;
 
 
+random_device rd;
+mt19937 rng(rd());
+
 bool equals(vector<int> a, vector<int> b) {
     if (a.size() != b.size()) return false;
     for (int i = 0; i < (int) a.size(); i++) {
@@ -176,8 +179,7 @@ public:
 };
 
 int randomNumber(int to) {
-    std::random_device rd;
-    std::mt19937 rng(rd());
+
     std::uniform_int_distribution<int> uni(0, to);
 
     int random_integer = uni(rng);
@@ -559,7 +561,6 @@ Dimensions tabuSearch(Dimensions original, int maxTabuSize, int iteration = -1) 
         solutionFit = fitnessFunction(original, solution);
         bestSolutionFit = fitnessFunction(original, bestSolution);
         for (auto neighbour: neighbours) {
-            tabuList.push_back(neighbour);
             if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
                 temporarySolution = neighbour;
                 temporarySolutionFit = fitnessFunction(original, temporarySolution);
@@ -592,8 +593,9 @@ Dimensions tabuSearch(Dimensions original, int maxTabuSize, int iteration = -1) 
     return solution;
 }
 
-Dimensions simulatedAnnealing(Dimensions original, int temp) {
+Dimensions simulatedAnnealing(Dimensions original, int iterations) {
     vector<Dimensions> neighbours = generateNeighbours(original);
+    int temp = 1;
 
 
     Dimensions temporarySolution;
@@ -601,26 +603,34 @@ Dimensions simulatedAnnealing(Dimensions original, int temp) {
     Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
     int bestSolutionFit;
 
-    do {
-        bestSolutionFit = fitnessFunction(original, bestSolution);
-        for (auto &neighbour: neighbours) {
-            if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
-                temporarySolution = neighbour;
-                temporarySolutionFit = fitnessFunction(original, temporarySolution);
-            } else {
-                temporarySolution = bestSolution;
-                temporarySolutionFit = bestSolutionFit;
-            }
-        }
+    for(int i = 0; i < iterations; i++) {
+       bestSolutionFit = fitnessFunction(original, bestSolution);
+       for (auto &neighbour: neighbours) {
+           if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
+               temporarySolution = neighbour;
+               temporarySolutionFit = fitnessFunction(original, temporarySolution);
+           } else {
+               temporarySolution = bestSolution;
+               temporarySolutionFit = bestSolutionFit;
+           }
+       }
 
 
-        if (temporarySolutionFit > bestSolutionFit) {
-            bestSolution = temporarySolution;
-        } else {
-            break;
-        }
-        neighbours = generateNeighbours(bestSolution);
-    } while (true);
+       if (temporarySolutionFit > bestSolutionFit) {
+           bestSolution = temporarySolution;
+       } else {
+           uniform_real_distribution<double> u(0,1);
+           if (u(rng) < exp(-abs(fitnessFunction(original, temporarySolution)-fitnessFunction(original,temporarySolution))/ (1000 / temp))) {
+               bestSolution = temporarySolution;
+           }
+       }
+
+        temp++;
+       neighbours = generateNeighbours(bestSolution);
+   }
+
+    cout << "The best fitness score for simulated annealing: " << fitnessFunction(original, bestSolution) << endl;
+
     return bestSolution;
 }
 
@@ -657,6 +667,13 @@ int main() {
     tabu.solve();
     tabu.showMatrix();
 
+
+    cout << "Best from simmulation annealing search: " << endl;
+    Dimensions annealing = simulatedAnnealing(dimensions, 200);
+    cout << annealing.daneX << endl;
+    cout << annealing.daneY << endl;
+    annealing.solve();
+    annealing.showMatrix();
 
     return 0;
 }
