@@ -22,23 +22,29 @@ bool equals(vector<int> a, vector<int> b) {
     return true;
 }
 
+
+struct Nonogram1D {
+public:
+    vector<int> bits;
+};
+
 struct Nonogram {
 public:
     vector<vector<int>> nonogram;
 
+    Nonogram1D convertTo1D() {
+        vector<int> result;
 
-    int getElementsAmount() {
-        int result = 0;
-
-        for(vector<int > el : nonogram){
-            for (int number : el) {
-                if(number == 1){
-                    result++;
-                }
+        for (vector<int> arr: nonogram) {
+            for (int el: arr) {
+                result.push_back(el);
             }
         }
-        return result;
+
+        return {result};
+
     }
+
 };
 
 struct Dimensions {
@@ -59,6 +65,16 @@ public:
 
     bool operator!=(const Dimensions &rhs) const {
         return !(rhs == *this);
+    }
+
+    int getNumberOfElements(){
+        int elements = 0;
+        for (vector<int> arr : daneX) {
+            for (int el : arr) {
+                elements += el;
+            }
+        }
+        return elements;
     }
 
     void showMatrix() {
@@ -275,6 +291,49 @@ Dimensions createDimensionsFromNonogram(Nonogram nonogram, int height) {
     return {daneX, daneY};
 }
 
+Dimensions createDimensionsFromNonogram1D(Nonogram1D nonogram, int height) {
+    vector<vector<int>> daneX;
+    vector<vector<int>> daneY;
+
+    vector<int> xLine;
+    vector<int> yLine;
+
+    int x = 0;
+    int y = 0;
+
+    for (int i = 0; i < height; i++) {
+        if (nonogram.bits[i] == 1) {
+            x++;
+        }
+        if (x != 0) {
+            xLine.push_back(x);
+        }
+        daneX.push_back(xLine);
+        xLine.clear();
+        x = 0;
+    }
+
+
+    for (int j = 0; j < nonogram.bits.size(); ++j) {
+        for (int i = 0; i < height; i++) {
+            if (nonogram.bits[i] == 1) {
+                y++;
+            } else if (y != 0) {
+                yLine.push_back(y);
+                y = 0;
+            }
+        }
+        if (y != 0) {
+            yLine.push_back(y);
+        }
+        daneY.push_back(yLine);
+        yLine.clear();
+        y = 0;
+    }
+
+    return {daneX, daneY};
+}
+
 
 ostream &operator<<(ostream &o, vector<vector<int>> tab) {
     for (auto row: tab) {
@@ -454,7 +513,8 @@ vector<vector<int>> change1DvectorTo2D(vector<int> original, int rowSize) {
 
 vector<Dimensions> generateNeighbours(Dimensions original) {
     vector<Dimensions> result;
-    Nonogram nonogram = original.solve();
+//    Nonogram nonogram = original.solve();
+    Nonogram nonogram = generatePuzzle(original.dimensionY, original.dimensionX, original.getNumberOfElements());
     vector<int> bits;
 
     for (vector<int> el: nonogram.nonogram) {
@@ -500,6 +560,8 @@ Dimensions deterministicHillClimbing(Dimensions original) {
                 temporarySolution = bestSolution;
                 temporarySolutionFit = bestSolutionFit;
             }
+//            cout << "Fit function: " << bestSolutionFit << endl;
+
         }
 
 
@@ -543,6 +605,7 @@ Dimensions randomHillClimbing(Dimensions original, int rounds) {
             bestSolution = temporarySolution;
             neighbours = generateNeighbours(bestSolution);
         }
+//                    cout << "Fit function: " << bestSolutionFit << endl;
     }
     cout << "The best fitness score for random hill climb: " << bestSolutionFit << endl;
     return bestSolution;
@@ -601,6 +664,8 @@ Dimensions tabuSearch(Dimensions original, int maxTabuSize, int iteration = -1) 
         }
         neighbours = generateNeighbours(bestSolution);
         i++;
+//                    cout << "Fit function: " << solutionFit << endl;
+
     } while (whileCondition(i, iteration));
 
     cout << "The best fitness score for tabu search: " << fitnessFunction(original, solution) << endl;
@@ -644,6 +709,9 @@ Dimensions simulatedAnnealing(Dimensions original, int iterations) {
 
         temp++;
         neighbours = generateNeighbours(bestSolution);
+
+        cout << "Fit function: " << bestSolutionFit << endl;
+
     }
 
     cout << "The best fitness score for simulated annealing: " << fitnessFunction(original, bestSolution) << endl;
@@ -652,18 +720,39 @@ Dimensions simulatedAnnealing(Dimensions original, int iterations) {
 }
 
 
-int selectPop(vector<int> arr) {
-
+int selectPop(vector<double> arr) {
+    std::uniform_int_distribution<int> distr(0, arr.size() - 1);
+    int idx1 = distr(rng);
+    int idx2 = distr(rng);
+    if (arr[idx1] > arr[idx2]) return idx1;
+    return idx2;
 
 }
 
-pair<Dimensions, Dimensions> crossoverFunction(Dimensions parent1, Dimensions parent2) {
+pair<Nonogram1D, Nonogram1D> crossoverFunction(Nonogram1D parent1, Nonogram1D parent2, double probability) {
+    uniform_real_distribution<double> distr(0.0, 1.0);
+    if (distr(rng) < probability) {
+        uniform_int_distribution<int> distr(0, parent1.bits.size() - 1);
+        int crossPtk = distr(rng);
+        for (int i = 0; i < crossPtk; i++) {
+            swap(parent1.bits[i], parent2.bits[i]);
+        }
+    }
 
+    return {parent1, parent2};
 }
 
 
-Dimensions mutation(Dimensions dimensions) {
-    return;
+Nonogram1D mutation(Nonogram1D element, double probability) {
+    uniform_real_distribution<double> distr(0.0, 1.0);
+    if (distr(rng) < probability) {
+        uniform_real_distribution<float> distr(0, element.bits.size() - 1);
+        int a = distr(rng);
+        int b = distr(rng);
+        swap(element.bits[a], element.bits[b]);
+
+    }
+    return element;
 }
 
 vector<Dimensions> generateInitialPopulation(int amount, int height, int width, int memberSize) {
@@ -676,17 +765,34 @@ vector<Dimensions> generateInitialPopulation(int amount, int height, int width, 
     return result;
 }
 
-int getNumberOfElements(Dimensions element){
+vector<Nonogram1D> convertPopulationTo1D(vector<Dimensions> dimensions) {
+    vector<Nonogram1D> result;
+    Nonogram temporaryNonogram;
+
+    for (Dimensions el: dimensions) {
+        temporaryNonogram = el.solve();
+        result.push_back(temporaryNonogram.convertTo1D());
+    }
+
+    return result;
+}
+
+int getNumberOfElements(Dimensions element) {
     int sum = 0;
 
-    for (vector<int> el : element.daneX) {
+    for (vector<int> el: element.daneX) {
         sum += accumulate(el.begin(), el.end(), 0);
     }
 
     return sum;
 }
 
-Dimensions calculate_genetic_algorithm(Dimensions original) {
+Dimensions geneticAlgorithm(Dimensions original, int iterations) {
+    int i = 0;
+    auto whileCondition = [&](int counter) -> bool {
+        i++;
+        return i < counter;
+    };
 
     auto calculateFitness = [&](auto pop) {
         std::vector<double> ret;
@@ -694,24 +800,26 @@ Dimensions calculate_genetic_algorithm(Dimensions original) {
         return ret;
     };
 
-    auto population = generateInitialPopulation(20, original.dimensionX, original.dimensionY, getNumberOfElements(original));
+    auto population = generateInitialPopulation(20, original.dimensionX, original.dimensionY,
+                                                getNumberOfElements(original));
     vector<double> fitForPop = calculateFitness(population);
 
+    auto populationInBits = convertPopulationTo1D(population);
 
-    while (term_condition(fitForPop, population)) {
-        vector<Dimensions> parents;
-        vector<Dimensions> children;
+    while (whileCondition(iterations)) {
+        vector<Nonogram1D> parents;
+        vector<Nonogram1D> children;
 
         for (int i = 0; i < population.size(); i++) {
-//            parents.push_back(population[selectPop(fitForPop)]);
+            parents.push_back(populationInBits[selectPop(fitForPop)]);
         }
         for (int i = 0; i < parents.size(); i += 2) {
-//            auto[a, b] = crossoverFunction(parents[i], parents[i + 1]);
-//            children.push_back(a);
-//            children.push_back(b);
+            auto[a, b] = crossoverFunction(parents[i], parents[i + 1], 0.9);
+            children.push_back(a);
+            children.push_back(b);
         }
         for (int i = 0; i < parents.size(); i++) {
-//            children[i] = mutation(children[i]);
+            children[i] = mutation(children[i], 0.1);
         }
 
         fitForPop.clear();
@@ -721,9 +829,14 @@ Dimensions calculate_genetic_algorithm(Dimensions original) {
 
 
     };
+
+    cout << "Fitness function for genetic: " << fitnessFunction(original,population[
+            max_element(fitForPop.begin(), fitForPop.end())
+            - fitForPop.begin()]) << endl;
+
     return population[
-            max_element(population_fit.begin(), population_fit.end())
-            - population_fit.begin()];
+            max_element(fitForPop.begin(), fitForPop.end())
+            - fitForPop.begin()];
 }
 
 int main() {
@@ -737,44 +850,50 @@ int main() {
     dimensions.showMatrix();
 
 
-    cout << "Best from random hillclimb: " << endl;
-    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10);
-    cout << randomHillClmb.daneX << endl;
-    cout << randomHillClmb.daneY << endl;
-    randomHillClmb.solve();
-    randomHillClmb.showMatrix();
+//    cout << "Best from random hillclimb: " << endl;
+//    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10);
+//    cout << randomHillClmb.daneX << endl;
+//    cout << randomHillClmb.daneY << endl;
+//    randomHillClmb.solve();
+//    randomHillClmb.showMatrix();
 
-    cout << "Best from deterministic hillclimb: " << endl;
-    Dimensions deterministicHillClimb = deterministicHillClimbing(dimensions);
-    cout << deterministicHillClimb.daneX << endl;
-    cout << deterministicHillClimb.daneY << endl;
-    deterministicHillClimb.solve();
-    deterministicHillClimb.showMatrix();
+//    cout << "Best from deterministic hillclimb: " << endl;
+//    Dimensions deterministicHillClimb = deterministicHillClimbing(dimensions);
+//    cout << deterministicHillClimb.daneX << endl;
+//    cout << deterministicHillClimb.daneY << endl;
+//    deterministicHillClimb.solve();
+//    deterministicHillClimb.showMatrix();
+//
+//    cout << "Best from tabu search: " << endl;
+//    Dimensions tabu = tabuSearch(dimensions, 200, 1000);
+//    cout << tabu.daneX << endl;
+//    cout << tabu.daneY << endl;
+//    tabu.solve();
+//    tabu.showMatrix();
+//
+//
+//    cout << "Best from simmulation annealing search: " << endl;
+//    Dimensions annealing = simulatedAnnealing(dimensions, 200);
+//    cout << annealing.daneX << endl;
+//    cout << annealing.daneY << endl;
+//    annealing.solve();
+//    annealing.showMatrix();
+//
+//
+//    cout << "Best from simmulation annealing search: " << endl;
+//    Dimensions generic = calculate_genetic_algorithm(dimensions);
+//    cout << generic.daneX << endl;
+//    cout << generic.daneY << endl;
+//    generic.solve();
+//    generic.showMatrix();
+//
 
-    cout << "Best from tabu search: " << endl;
-    Dimensions tabu = tabuSearch(dimensions, 200, 1000);
-    cout << tabu.daneX << endl;
-    cout << tabu.daneY << endl;
-    tabu.solve();
-    tabu.showMatrix();
-
-
-    cout << "Best from simmulation annealing search: " << endl;
-    Dimensions annealing = simulatedAnnealing(dimensions, 200);
-    cout << annealing.daneX << endl;
-    cout << annealing.daneY << endl;
-    annealing.solve();
-    annealing.showMatrix();
-
-
-    cout << "Best from simmulation annealing search: " << endl;
-    Dimensions generic = calculate_genetic_algorithm(dimensions);
-    cout << generic.daneX << endl;
-    cout << generic.daneY << endl;
-    generic.solve();
-    generic.showMatrix();
-
-
+    cout << "Best from genetic: " << endl;
+    Dimensions genetic = geneticAlgorithm(dimensions, 100);
+    cout << genetic.daneX << endl;
+    cout << genetic.daneY << endl;
+    genetic.solve();
+    genetic.showMatrix();
     return 0;
 }
 
