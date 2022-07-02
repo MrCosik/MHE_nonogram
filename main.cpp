@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <set>
 #include <map>
+#include <chrono>
 
 using namespace std;
 
@@ -67,10 +68,10 @@ public:
         return !(rhs == *this);
     }
 
-    int getNumberOfElements(){
+    int getNumberOfElements() {
         int elements = 0;
-        for (vector<int> arr : daneX) {
-            for (int el : arr) {
+        for (vector<int> arr: daneX) {
+            for (int el: arr) {
                 elements += el;
             }
         }
@@ -742,6 +743,23 @@ pair<Nonogram1D, Nonogram1D> crossoverFunction(Nonogram1D parent1, Nonogram1D pa
     return {parent1, parent2};
 }
 
+pair<Nonogram1D, Nonogram1D> doubleCross(Nonogram1D parent1, Nonogram1D parent2, double probability) {
+    uniform_real_distribution<double> distr(0.0, 1.0);
+    if (distr(rng) < probability) {
+        uniform_int_distribution<int> distr(1, parent1.bits.size() - 2);
+        int crossPtk1 = distr(rng);
+        int crossPtk2 = distr(rng);
+        if(crossPtk1 > crossPtk2) swap(crossPtk1, crossPtk2);
+
+        for (int i = crossPtk1; i <= crossPtk2; i++) {
+            swap(parent1.bits[i], parent2.bits[i]);
+        }
+
+    }
+
+    return {parent1, parent2};
+}
+
 
 Nonogram1D mutation(Nonogram1D element, double probability) {
     uniform_real_distribution<double> distr(0.0, 1.0);
@@ -752,6 +770,28 @@ Nonogram1D mutation(Nonogram1D element, double probability) {
         swap(element.bits[a], element.bits[b]);
 
     }
+    return element;
+}
+
+Nonogram1D inverseMutation(Nonogram1D element, double probability) {
+    uniform_real_distribution<double> distr(0.0, 1.0);
+    if (distr(rng) < probability) {
+        uniform_real_distribution<float> distr(0, element.bits.size() - 1);
+        int rangeStart = distr(rng);
+        int rangeEnd = distr(rng);
+        if(rangeStart > rangeEnd){
+            swap(rangeStart, rangeEnd);
+        }
+
+        int j = rangeEnd;
+        for(int i = 0; i <= rangeEnd - rangeStart; i++){
+
+            iter_swap(element.bits.begin() + rangeStart, element.bits.begin() + rangeEnd );
+            rangeStart++;
+            rangeEnd--;
+        }
+
+   }
     return element;
 }
 
@@ -787,8 +827,10 @@ int getNumberOfElements(Dimensions element) {
     return sum;
 }
 
-Dimensions geneticAlgorithm(Dimensions original, int iterations) {
+Dimensions geneticAlgorithm(Dimensions original, int iterations,int populationSize,  double fitnessIterations = -1) {
+    using namespace std::chrono;
     int i = 0;
+    int fitIterations = 0;
     auto whileCondition = [&](int counter) -> bool {
         i++;
         return i < counter;
@@ -800,13 +842,13 @@ Dimensions geneticAlgorithm(Dimensions original, int iterations) {
         return ret;
     };
 
-    auto population = generateInitialPopulation(20, original.dimensionX, original.dimensionY,
+    auto population = generateInitialPopulation(populationSize, original.dimensionX, original.dimensionY,
                                                 getNumberOfElements(original));
     vector<double> fitForPop = calculateFitness(population);
 
     auto populationInBits = convertPopulationTo1D(population);
 
-    while (whileCondition(iterations)) {
+    while ( whileCondition(iterations)) {
         vector<Nonogram1D> parents;
         vector<Nonogram1D> children;
 
@@ -815,22 +857,27 @@ Dimensions geneticAlgorithm(Dimensions original, int iterations) {
         }
         for (int i = 0; i < parents.size(); i += 2) {
             auto[a, b] = crossoverFunction(parents[i], parents[i + 1], 0.9);
+//            auto[a, b] = doubleCross(parents[i], parents[i + 1], 0.9);
             children.push_back(a);
             children.push_back(b);
         }
         for (int i = 0; i < parents.size(); i++) {
-            children[i] = mutation(children[i], 0.1);
+//            children[i] = mutation(children[i], 0.1);
+            children[i] = inverseMutation(children[i], 0.9);
         }
 
         fitForPop.clear();
         for (Dimensions el: population) {
             fitForPop.push_back(fitnessFunction(original, el));
+            fitIterations++;
         }
-
+        if( fitIterations == fitnessIterations){
+            break;
+        }
 
     };
 
-    cout << "Fitness function for genetic: " << fitnessFunction(original,population[
+    cout << "Fitness function for genetic: " << fitnessFunction(original, population[
             max_element(fitForPop.begin(), fitForPop.end())
             - fitForPop.begin()]) << endl;
 
@@ -889,7 +936,7 @@ int main() {
 //
 
     cout << "Best from genetic: " << endl;
-    Dimensions genetic = geneticAlgorithm(dimensions, 100);
+    Dimensions genetic = geneticAlgorithm(dimensions, 100,20);
     cout << genetic.daneX << endl;
     cout << genetic.daneY << endl;
     genetic.solve();
