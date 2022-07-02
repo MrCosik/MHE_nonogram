@@ -8,12 +8,52 @@
 #include <set>
 #include <map>
 #include <chrono>
+#include <any>
 
 using namespace std;
 
-
 random_device rd;
 mt19937 rng(rd());
+
+
+auto arg = [](int argc, char **argv, std::string name, auto default_value) -> decltype(default_value) {
+    using namespace std;
+    string paramname = "";
+    any ret = default_value;
+    for (auto argument: vector<string>(argv, argv + argc)) {
+        if ((argument.size() > 0) && (argument[0] == '-')) {
+            if (paramname != "") {
+                if (name == argument.substr(1))
+                    ret = true;
+            }
+            paramname = argument.substr(1);
+        } else if (name == paramname) {
+            if (std::is_same_v<decltype(default_value), int>)
+                ret = stoi(argument);
+            else if (std::is_same_v<decltype(default_value), double>)
+                ret = stod(argument);
+            else if (std::is_same_v<decltype(default_value), char>)
+                ret = argument.at(0);
+            else if (std::is_same_v<decltype(default_value), bool>)
+                ret = (argument == "true") || (argument == "1") || (argument == "yes");
+            else
+                ret = argument;
+            paramname = "";
+        }
+    }
+    return std::any_cast<decltype(default_value)>(ret);
+};
+
+void show_help() {
+#ifndef __OPTIMIZE__
+#define OPTIMIZED "optimized "
+#else
+#define OPTIMIZED ""
+#endif
+    std::cout << "# " << OPTIMIZED << "binary with date: " << __TIME__ << " " << __DATE__ << std::endl;
+    std::cout << "-fname filename" << std::endl;
+    std::cout << "-show_progress true/false" << std::endl;
+}
 
 bool equals(vector<int> a, vector<int> b) {
     if (a.size() != b.size()) return false;
@@ -60,8 +100,12 @@ public:
     long dimensionY = daneY.size();
 
     bool operator==(const Dimensions &rhs) const {
+
         return daneX == rhs.daneX &&
-               daneY == rhs.daneY;
+               daneY == rhs.daneY &&
+               matrix == rhs.matrix &&
+               dimensionX == rhs.dimensionX &&
+               dimensionY == rhs.dimensionY;
     }
 
     bool operator!=(const Dimensions &rhs) const {
@@ -208,6 +252,8 @@ public:
         }
         return {matrix};
     }
+
+
 };
 
 int randomNumber(int to) {
@@ -221,7 +267,6 @@ int randomNumber(int to) {
 
 
 Nonogram generatePuzzle(int height, int width, int allElements) {
-
 
     int maxHeight;
     int maxWidth;
@@ -524,7 +569,6 @@ vector<Dimensions> generateNeighbours(Dimensions original) {
         }
     }
 
-    result.push_back(original);
 
     for (int i = 0; i < bits.size(); ++i) {
 
@@ -575,7 +619,7 @@ Dimensions deterministicHillClimbing(Dimensions original) {
 
     } while (true);
 
-    cout << "The best fitness score for deterministic hill climb: " << fitnessFunction(original, bestSolution) << endl;
+    cout << "The best fitness score for deterministic hill climb: " << bestSolutionFit << endl;
     return bestSolution;
 
 }
@@ -617,15 +661,17 @@ Dimensions tabuSearch(Dimensions original, int maxTabuSize, int iteration = -1) 
     vector<Dimensions> neighbours = generateNeighbours(original);
 
     int i = 0;
-    Dimensions solution = neighbours[randomNumber(neighbours.size() - 1)];
-    Dimensions bestSolution = solution;
-    vector<Dimensions> tabuList = {solution};
-
+    Dimensions bestSolution = neighbours[randomNumber(neighbours.size() - 1)];
     Dimensions temporarySolution;
+    vector<Dimensions> tabuList = {bestSolution};
+    vector<Dimensions> tabuSteps = {bestSolution};
 
     int temporarySolutionFit;
     int bestSolutionFit;
-    int solutionFit;
+
+    int bestPossibleFitness = fitnessFunction(original, original);
+
+    bool changed;
 
     auto whileCondition = [](int counter, int rounds) -> bool {
         if (rounds < 0) {
@@ -635,43 +681,59 @@ Dimensions tabuSearch(Dimensions original, int maxTabuSize, int iteration = -1) 
         }
     };
 
+    auto termination = [=]() {
+        for (Dimensions el: tabuList) {
+            if (el == temporarySolution) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    temporarySolution = bestSolution;
 
     do {
-        solutionFit = fitnessFunction(original, solution);
+        changed = false;
         bestSolutionFit = fitnessFunction(original, bestSolution);
+
         for (auto neighbour: neighbours) {
-            if (fitnessFunction(original, bestSolution) < fitnessFunction(original, neighbour)) {
+            if (fitnessFunction(original, temporarySolution) < fitnessFunction(original, neighbour)) {
                 temporarySolution = neighbour;
-                temporarySolutionFit = fitnessFunction(original, temporarySolution);
-            } else {
-                temporarySolution = bestSolution;
-                temporarySolutionFit = bestSolutionFit;
+                temporarySolutionFit = fitnessFunction(original, neighbour);
             }
         }
 
 
-        if (find(tabuList.begin(), tabuList.end(), temporarySolution) != tabuList.end() &&
-            bestSolutionFit < temporarySolutionFit) {
+
+        if (termination() && temporarySolutionFit > bestSolutionFit) {
             bestSolution = temporarySolution;
+            bestSolutionFit = temporarySolutionFit;
+            tabuList.push_back(bestSolution);
+            tabuSteps.push_back(bestSolution);
+            changed = true;
         }
 
-        if (solutionFit < bestSolutionFit) {
-            solution = bestSolution;
-        }
-
-        tabuList.push_back(bestSolution);
         if (tabuList.size() > maxTabuSize) {
             tabuList.erase(tabuList.begin());
         }
+
+        if(bestSolutionFit == bestPossibleFitness){
+            break;
+        }
+
+        if(!changed && tabuSteps.size() > 0){
+            bestSolution = tabuSteps[tabuSteps.size() - 1];
+            tabuSteps.pop_back();
+        }
+
+
         neighbours = generateNeighbours(bestSolution);
         i++;
-//                    cout << "Fit function: " << solutionFit << endl;
-
     } while (whileCondition(i, iteration));
 
-    cout << "The best fitness score for tabu search: " << fitnessFunction(original, solution) << endl;
+    cout << "The best fitness score for tabu search: " << bestSolutionFit << endl;
 
-    return solution;
+    return bestSolution;
 }
 
 Dimensions simulatedAnnealing(Dimensions original, int iterations) {
@@ -749,7 +811,7 @@ pair<Nonogram1D, Nonogram1D> doubleCross(Nonogram1D parent1, Nonogram1D parent2,
         uniform_int_distribution<int> distr(1, parent1.bits.size() - 2);
         int crossPtk1 = distr(rng);
         int crossPtk2 = distr(rng);
-        if(crossPtk1 > crossPtk2) swap(crossPtk1, crossPtk2);
+        if (crossPtk1 > crossPtk2) swap(crossPtk1, crossPtk2);
 
         for (int i = crossPtk1; i <= crossPtk2; i++) {
             swap(parent1.bits[i], parent2.bits[i]);
@@ -779,19 +841,19 @@ Nonogram1D inverseMutation(Nonogram1D element, double probability) {
         uniform_real_distribution<float> distr(0, element.bits.size() - 1);
         int rangeStart = distr(rng);
         int rangeEnd = distr(rng);
-        if(rangeStart > rangeEnd){
+        if (rangeStart > rangeEnd) {
             swap(rangeStart, rangeEnd);
         }
 
         int j = rangeEnd;
-        for(int i = 0; i <= rangeEnd - rangeStart; i++){
+        for (int i = 0; i <= rangeEnd - rangeStart; i++) {
 
-            iter_swap(element.bits.begin() + rangeStart, element.bits.begin() + rangeEnd );
+            iter_swap(element.bits.begin() + rangeStart, element.bits.begin() + rangeEnd);
             rangeStart++;
             rangeEnd--;
         }
 
-   }
+    }
     return element;
 }
 
@@ -827,7 +889,8 @@ int getNumberOfElements(Dimensions element) {
     return sum;
 }
 
-Dimensions geneticAlgorithm(Dimensions original, int iterations,int populationSize,  double fitnessIterations = -1) {
+Dimensions geneticAlgorithm(Dimensions original, int iterations, int populationSize, double crossingP, double mutationP,
+                            double fitnessIterations) {
     using namespace std::chrono;
     int i = 0;
     int fitIterations = 0;
@@ -848,7 +911,7 @@ Dimensions geneticAlgorithm(Dimensions original, int iterations,int populationSi
 
     auto populationInBits = convertPopulationTo1D(population);
 
-    while ( whileCondition(iterations)) {
+    while (whileCondition(iterations)) {
         vector<Nonogram1D> parents;
         vector<Nonogram1D> children;
 
@@ -856,14 +919,14 @@ Dimensions geneticAlgorithm(Dimensions original, int iterations,int populationSi
             parents.push_back(populationInBits[selectPop(fitForPop)]);
         }
         for (int i = 0; i < parents.size(); i += 2) {
-            auto[a, b] = crossoverFunction(parents[i], parents[i + 1], 0.9);
+            auto[a, b] = crossoverFunction(parents[i], parents[i + 1], crossingP);
 //            auto[a, b] = doubleCross(parents[i], parents[i + 1], 0.9);
             children.push_back(a);
             children.push_back(b);
         }
         for (int i = 0; i < parents.size(); i++) {
 //            children[i] = mutation(children[i], 0.1);
-            children[i] = inverseMutation(children[i], 0.9);
+            children[i] = inverseMutation(children[i], mutationP);
         }
 
         fitForPop.clear();
@@ -871,7 +934,7 @@ Dimensions geneticAlgorithm(Dimensions original, int iterations,int populationSi
             fitForPop.push_back(fitnessFunction(original, el));
             fitIterations++;
         }
-        if( fitIterations == fitnessIterations){
+        if (fitIterations == fitnessIterations) {
             break;
         }
 
@@ -886,9 +949,8 @@ Dimensions geneticAlgorithm(Dimensions original, int iterations,int populationSi
             - fitForPop.begin()];
 }
 
-int main() {
-    vector<int> potentialNeighbour_x;
-    vector<int> potentialNeighbour_y;
+int main(int argc, char **argv) {
+    Dimensions best_solution;
 
     Dimensions dimensions = getDataFromFile("../input.txt");
     cout << dimensions.daneX << endl;
@@ -897,50 +959,70 @@ int main() {
     dimensions.showMatrix();
 
 
-//    cout << "Best from random hillclimb: " << endl;
-//    Dimensions randomHillClmb = randomHillClimbing(dimensions, 10);
-//    cout << randomHillClmb.daneX << endl;
-//    cout << randomHillClmb.daneY << endl;
-//    randomHillClmb.solve();
-//    randomHillClmb.showMatrix();
+    auto fname = arg(argc, argv, "fname", std::string(""));
+    auto iterations = arg(argc, argv, "iterations", 1000);
+    auto method = arg(argc, argv, "method", std::string("random_hillclimb"));
+    auto tabuSize = arg(argc, argv, "tabuSize", 200);
 
-//    cout << "Best from deterministic hillclimb: " << endl;
-//    Dimensions deterministicHillClimb = deterministicHillClimbing(dimensions);
-//    cout << deterministicHillClimb.daneX << endl;
-//    cout << deterministicHillClimb.daneY << endl;
-//    deterministicHillClimb.solve();
-//    deterministicHillClimb.showMatrix();
-//
-//    cout << "Best from tabu search: " << endl;
-//    Dimensions tabu = tabuSearch(dimensions, 200, 1000);
-//    cout << tabu.daneX << endl;
-//    cout << tabu.daneY << endl;
-//    tabu.solve();
-//    tabu.showMatrix();
-//
-//
-//    cout << "Best from simmulation annealing search: " << endl;
-//    Dimensions annealing = simulatedAnnealing(dimensions, 200);
-//    cout << annealing.daneX << endl;
-//    cout << annealing.daneY << endl;
-//    annealing.solve();
-//    annealing.showMatrix();
-//
-//
-//    cout << "Best from simmulation annealing search: " << endl;
-//    Dimensions generic = calculate_genetic_algorithm(dimensions);
-//    cout << generic.daneX << endl;
-//    cout << generic.daneY << endl;
-//    generic.solve();
-//    generic.showMatrix();
-//
+    auto pop_size = arg(argc, argv, "pop_size", 50);
+    auto genIteration = arg(argc, argv, "genIteration", -1);
+    auto crossover_p = arg(argc, argv, "crossover_p", 0.9);
+    auto mutation_p = arg(argc, argv, "mutation_p", 0.1);
+    auto help = arg(argc, argv, "help", true);
 
-    cout << "Best from genetic: " << endl;
-    Dimensions genetic = geneticAlgorithm(dimensions, 100,20);
-    cout << genetic.daneX << endl;
-    cout << genetic.daneY << endl;
-    genetic.solve();
-    genetic.showMatrix();
+    /// do we need to show some help?
+    if (arg(argc, argv, "h", false)) {
+        show_help();
+        return 0;
+    }
+
+    /// load the dimensions at hand
+    std::chrono::duration<double> calculation_duration;
+    if (method == "deterministic_hill") {
+        cout << "Best from deterministic hillclimb: " << endl;
+        Dimensions deterministicHillClimb = deterministicHillClimbing(dimensions);
+        cout << deterministicHillClimb.daneX << endl;
+        cout << deterministicHillClimb.daneY << endl;
+        deterministicHillClimb.solve();
+        deterministicHillClimb.showMatrix();
+    } else if (method == "random_hillclimb") {
+        cout << "Best from random hillclimb: " << endl;
+        Dimensions randomHillClmb = randomHillClimbing(dimensions, iterations);
+        cout << randomHillClmb.daneX << endl;
+        cout << randomHillClmb.daneY << endl;
+        randomHillClmb.solve();
+        randomHillClmb.showMatrix();
+
+    } else if (method == "tabu") {
+        cout << "Best from tabu search: " << endl;
+        Dimensions tabu = tabuSearch(dimensions, tabuSize, iterations);
+        cout << tabu.daneX << endl;
+        cout << tabu.daneY << endl;
+        tabu.solve();
+        tabu.showMatrix();
+
+    } else if (method == "simulated_annealing") {
+        cout << "Best from simmulation annealing search: " << endl;
+        Dimensions annealing = simulatedAnnealing(dimensions, iterations);
+        cout << annealing.daneX << endl;
+        cout << annealing.daneY << endl;
+        annealing.solve();
+        annealing.showMatrix();
+    } else if (method == "genetic_algorithm") {
+        cout << "Best from genetic: " << endl;
+        Dimensions genetic = geneticAlgorithm(dimensions, iterations, pop_size, crossover_p, mutation_p, genIteration);
+        cout << genetic.daneX << endl;
+        cout << genetic.daneY << endl;
+        genetic.solve();
+        genetic.showMatrix();
+    } else {
+        std::cerr << "unknown method" << std::endl;
+    }
+//    cout << "# " << method << ": best_cost: " << fitnessFunction(dimensions, best_solution)
+//         << " calculation_time: " << calculation_duration.count() << endl;
+//    cout << "# solution: " << best_solution.daneX << endl;
+//    cout << "# solution: " << best_solution.daneY << endl;
+
     return 0;
 }
 
